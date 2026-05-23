@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
     Alert,
@@ -10,12 +11,14 @@ import {
 } from "react-native";
 import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../contexts/ThemeContext";
-import { loginUser } from "../utils/storage";
+import { loginUser, signInWithGoogleAccount } from "../utils/storage";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const styles = createStyles(theme);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const {
     control,
@@ -24,11 +27,26 @@ export default function LoginScreen() {
   } = useForm();
 
   const onSubmit = async (data) => {
+    setLoading(true);
     const result = await loginUser(data.email, data.password);
+    setLoading(false);
+
     if (result.success) {
       router.replace("/");
     } else {
       Alert.alert("Login Failed", result.error);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    const result = await signInWithGoogleAccount();
+    setGoogleLoading(false);
+
+    if (result.success) {
+      router.replace("/");
+    } else {
+      Alert.alert("Google Sign-In Failed", result.error);
     }
   };
 
@@ -96,7 +114,17 @@ export default function LoginScreen() {
           style={styles.outlineButton}
           onPress={handleSubmit(onSubmit)}
         >
-          <Text style={styles.buttonText}>Login</Text>
+          <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login with Email"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          disabled={googleLoading}
+          style={[styles.googleButton, styles.spacing]}
+          onPress={handleGoogleLogin}
+        >
+          <Text style={styles.googleButtonText}>
+            {googleLoading ? "Opening Google..." : "Continue with Google"}
+          </Text>
         </TouchableOpacity>
 
         {/* REGISTER BUTTON */}
@@ -148,17 +176,27 @@ function createStyles(theme) {
     borderRadius: 6,
   },
   outlineButton: {
+    alignItems: "center",
     borderWidth: 2,
     borderColor: theme.primary,
     padding: 12,
     borderRadius: 8,
+  },
+  googleButton: {
     alignItems: "center",
+    backgroundColor: theme.primary,
+    borderRadius: 8,
+    padding: 12,
   },
   spacing: {
     marginTop: 15,
   },
   buttonText: {
     color: theme.primary,
+    fontWeight: "bold",
+  },
+  googleButtonText: {
+    color: theme.primaryText,
     fontWeight: "bold",
   },
   error: {

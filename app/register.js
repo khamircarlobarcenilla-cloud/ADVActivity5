@@ -1,20 +1,23 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../contexts/ThemeContext";
-import { saveUser } from "../utils/storage";
+import { saveUser, signInWithGoogleAccount } from "../utils/storage";
 
 export default function Register() {
   const router = useRouter();
   const { theme } = useTheme();
   const styles = createStyles(theme);
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const { control, handleSubmit, watch, formState: { errors } } = useForm();
 
   const password = watch("password");
 
   const onRegister = async (data) => {
-    // Verify user doesn't already exist
+    setLoading(true);
     const result = await saveUser({
       email: data.email,
       password: data.password,
@@ -22,15 +25,27 @@ export default function Register() {
       lastName: "",
       profilePhoto: null,
     });
+    setLoading(false);
 
     if (result.success) {
-      // Pass email to setup screen for profile completion
       router.push({
         pathname: "/setup",
         params: { email: data.email },
       });
     } else {
-      alert(result.error);
+      Alert.alert("Registration Failed", result.error);
+    }
+  };
+
+  const handleGoogleRegister = async () => {
+    setGoogleLoading(true);
+    const result = await signInWithGoogleAccount();
+    setGoogleLoading(false);
+
+    if (result.success) {
+      router.replace("/");
+    } else {
+      Alert.alert("Google Registration Failed", result.error);
     }
   };
 
@@ -97,8 +112,14 @@ export default function Register() {
         <Text style={styles.error}>{errors.confirmPassword.message}</Text>
       )}
 
-      <TouchableOpacity style={styles.button} onPress={handleSubmit(onRegister)}>
-        <Text style={styles.buttonText}>Register</Text>
+      <TouchableOpacity disabled={loading} style={styles.button} onPress={handleSubmit(onRegister)}>
+        <Text style={styles.buttonText}>{loading ? "Creating account..." : "Register with Email"}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity disabled={googleLoading} style={styles.outlineButton} onPress={handleGoogleRegister}>
+        <Text style={styles.outlineButtonText}>
+          {googleLoading ? "Opening Google..." : "Register with Google"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -123,8 +144,20 @@ function createStyles(theme) {
       borderRadius: 8,
       padding: 12,
     },
+    outlineButton: {
+      alignItems: "center",
+      borderColor: theme.primary,
+      borderRadius: 8,
+      borderWidth: 2,
+      marginTop: 12,
+      padding: 12,
+    },
     buttonText: {
       color: theme.primaryText,
+      fontWeight: "700",
+    },
+    outlineButtonText: {
+      color: theme.primary,
       fontWeight: "700",
     },
     error: { color: theme.danger, marginBottom: 10 },

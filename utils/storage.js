@@ -1,115 +1,192 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
+import {
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile as updateFirebaseProfile,
+} from "firebase/auth";
+import { auth } from "./firebase";
 
-const USERS_KEY = 'users_data';
-const CURRENT_USER_KEY = 'current_user';
+const PROFILE_KEY = "firebase_user_profiles";
 
-// Save user registration data
+function friendlyAuthError(error) {
+  const code = error?.code || "";
+
+  if (code.includes("email-already-in-use")) return "Email is already registered.";
+  if (code.includes("invalid-email")) return "Please enter a valid email address.";
+  if (code.includes("invalid-credential")) return "Invalid email or password.";
+  if (code.includes("weak-password")) return "Password should be at least 6 characters.";
+  if (code.includes("popup-closed-by-user")) return "Google sign-in was cancelled.";
+  if (code.includes("operation-not-allowed")) {
+    return "This sign-in method is not enabled in Firebase Authentication.";
+  }
+
+  return error?.message || "Authentication failed. Please try again.";
+}
+
+async function getProfiles() {
+  try {
+    const value = await AsyncStorage.getItem(PROFILE_KEY);
+    return value ? JSON.parse(value) : {};
+  } catch (error) {
+    console.error("Error loading profiles:", error);
+    return {};
+  }
+}
+
+async function saveProfile(uid, profile) {
+  const profiles = await getProfiles();
+  const nextProfile = { ...profiles[uid], ...profile, uid };
+
+  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ ...profiles, [uid]: nextProfile }));
+  return nextProfile;
+}
+
+function formatUser(firebaseUser, profile = {}) {
+  const [firstName = "", ...restName] = (firebaseUser.displayName || "").split(" ");
+
+  return {
+    uid: firebaseUser.uid,
+    email: firebaseUser.email,
+    firstName: profile.firstName ?? firstName,
+    lastName: profile.lastName ?? restName.join(" "),
+    profilePhoto: profile.profilePhoto ?? firebaseUser.photoURL ?? null,
+    providerId: firebaseUser.providerData?.[0]?.providerId || "password",
+  };
+}
+
+async function ensureProfile(firebaseUser, defaults = {}) {
+  const profiles = await getProfiles();
+  const existingProfile = profiles[firebaseUser.uid] || {};
+  const profile = await saveProfile(firebaseUser.uid, {
+    email: firebaseUser.email,
+    firstName: "",
+    lastName: "",
+    profilePhoto: firebaseUser.photoURL || null,
+    ...defaults,
+    ...existingProfile,
+  });
+
+  return formatUser(firebaseUser, profile);
+}
+
+function getAuthUser() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
 export const saveUser = async (userData) => {
   try {
-    const existingUsers = await getUsers();
-    const userExists = existingUsers.some(u => u.email === userData.email);
-    
-    if (userExists) {
-      throw new Error('Email already registered');
-    }
+    const credential = await createUserWithEmailAndPassword(auth, userData.email.trim(), userData.password);
+    const user = await ensureProfile(credential.user, {
+      firstName: userData.firstName || "",
+      lastName: userData.lastName || "",
+      profilePhoto: userData.profilePhoto || null,
+    });
 
-    const updatedUsers = [...existingUsers, userData];
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers));
-    return { success: true, message: 'User registered successfully' };
+    return { success: true, message: "User registered successfully", user };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: friendlyAuthError(error) };
   }
 };
 
-// Get all registered users
-export const getUsers = async () => {
-  try {
-    const users = await AsyncStorage.getItem(USERS_KEY);
-    return users ? JSON.parse(users) : [];
-  } catch (error) {
-    console.error('Error getting users:', error);
-    return [];
-  }
-};
-
-// Login user (verify credentials)
 export const loginUser = async (email, password) => {
   try {
-    const users = await getUsers();
-    console.log('Available users:', users);
-    console.log('Trying to login with:', { email, password });
-    
-    const user = users.find(u => u.email === email && u.password === password);
-    
-    if (!user) {
-      console.log('No user found with email:', email);
-      return { success: false, error: 'Invalid email or password' };
-    }
+    const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const user = await ensureProfile(credential.user);
 
-    console.log('Login successful for:', email);
-    // Save current logged-in user
-    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
     return { success: true, user };
   } catch (error) {
-    console.error('Login error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: friendlyAuthError(error) };
   }
 };
 
-// Get current logged-in user
+export const signInWithGoogleAccount = async () => {
+  if (Platform.OS !== "web") {
+    return {
+      success: false,
+      error:
+        "Google sign-in is ready for web. For Android or iOS, add Google OAuth client IDs and connect them with Expo AuthSession.",
+    };
+  }
+
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
+    const credential = await signInWithPopup(auth, provider);
+    const user = await ensureProfile(credential.user, {
+      firstName: credential.user.displayName?.split(" ")[0] || "",
+      lastName: credential.user.displayName?.split(" ").slice(1).join(" ") || "",
+      profilePhoto: credential.user.photoURL || null,
+    });
+
+    return { success: true, user };
+  } catch (error) {
+    return { success: false, error: friendlyAuthError(error) };
+  }
+};
+
 export const getCurrentUser = async () => {
+  const firebaseUser = await getAuthUser();
+  if (!firebaseUser) return null;
+
+  return ensureProfile(firebaseUser);
+};
+
+export const updateUserProfile = async (_email, updates) => {
   try {
-    const user = await AsyncStorage.getItem(CURRENT_USER_KEY);
-    return user ? JSON.parse(user) : null;
+    const firebaseUser = await getAuthUser();
+
+    if (!firebaseUser) {
+      throw new Error("Please log in again before updating your profile.");
+    }
+
+    const displayName = `${updates.firstName || ""} ${updates.lastName || ""}`.trim();
+
+    await updateFirebaseProfile(firebaseUser, {
+      displayName: displayName || firebaseUser.displayName,
+      photoURL: updates.profilePhoto || firebaseUser.photoURL,
+    });
+
+    const profile = await saveProfile(firebaseUser.uid, {
+      email: firebaseUser.email,
+      firstName: updates.firstName || "",
+      lastName: updates.lastName || "",
+      profilePhoto: updates.profilePhoto || null,
+    });
+
+    return { success: true, user: formatUser(firebaseUser, profile) };
   } catch (error) {
-    console.error('Error getting current user:', error);
-    return null;
+    return { success: false, error: friendlyAuthError(error) };
   }
 };
 
-// Update user profile by email
-export const updateUserProfile = async (email, updates) => {
-  try {
-    if (!email) {
-      throw new Error('Email is required');
-    }
-
-    const users = await getUsers();
-    const userIndex = users.findIndex(u => u.email === email);
-    
-    if (userIndex === -1) {
-      throw new Error('User not found');
-    }
-
-    const updatedUser = { ...users[userIndex], ...updates };
-    users[userIndex] = updatedUser;
-    
-    await AsyncStorage.setItem(USERS_KEY, JSON.stringify(users));
-    await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser));
-
-    return { success: true, user: updatedUser };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-// Logout user
 export const logoutUser = async () => {
   try {
-    await AsyncStorage.removeItem(CURRENT_USER_KEY);
+    await signOut(auth);
     return { success: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: friendlyAuthError(error) };
   }
 };
 
-// Clear all data
 export const clearAllData = async () => {
   try {
-    await AsyncStorage.removeItem(USERS_KEY);
-    await AsyncStorage.removeItem(CURRENT_USER_KEY);
+    await AsyncStorage.removeItem(PROFILE_KEY);
+    await signOut(auth);
     return { success: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: friendlyAuthError(error) };
   }
 };
