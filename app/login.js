@@ -8,10 +8,14 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 import { loginUser } from "../utils/storage";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
 
   const {
     control,
@@ -31,10 +35,11 @@ export default function LoginScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.card}>
+        <ThemeToggle />
         <Text style={styles.title}>Login</Text>
 
         {/* EMAIL FIELD */}
-        <Text>Email</Text>
+        <Text style={styles.label}>Email</Text>
         <Controller
           control={control}
           name="email"
@@ -49,6 +54,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter email"
+              placeholderTextColor={theme.muted}
               value={value}
               onChangeText={onChange}
             />
@@ -59,7 +65,7 @@ export default function LoginScreen() {
         )}
 
         {/* PASSWORD FIELD */}
-        <Text>Password</Text>
+        <Text style={styles.label}>Password</Text>
         <Controller
           control={control}
           name="password"
@@ -74,6 +80,7 @@ export default function LoginScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter password"
+              placeholderTextColor={theme.muted}
               secureTextEntry
               value={value}
               onChangeText={onChange}
@@ -104,36 +111,45 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme) {
+  return StyleSheet.create({
   screen: {
+    backgroundColor: theme.background,
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f2f2f2",
   },
   card: {
     width: "85%",
-    backgroundColor: "white",
+    backgroundColor: theme.card,
     padding: 20,
     borderRadius: 12,
     elevation: 5,
   },
   title: {
+    color: theme.text,
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 15,
     textAlign: "center",
   },
+  label: {
+    color: theme.text,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+    color: theme.text,
     padding: 10,
     marginBottom: 10,
     borderRadius: 6,
   },
   outlineButton: {
     borderWidth: 2,
-    borderColor: "#007BFF",
+    borderColor: theme.primary,
     padding: 12,
     borderRadius: 8,
     alignItems: "center",
@@ -142,11 +158,12 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   buttonText: {
-    color: "#007BFF",
+    color: theme.primary,
     fontWeight: "bold",
   },
   error: {
-    color: "red",
+    color: theme.danger,
     marginBottom: 8,
   },
-});
+  });
+}

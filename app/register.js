@@ -1,10 +1,14 @@
 import { useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 import { saveUser } from "../utils/storage";
 
 export default function Register() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const { control, handleSubmit, watch, formState: { errors } } = useForm();
 
   const password = watch("password");
@@ -32,6 +36,7 @@ export default function Register() {
 
   return (
     <View style={styles.container}>
+      <ThemeToggle />
       <Text style={styles.title}>Register</Text>
 
       {/* Email */}
@@ -42,6 +47,7 @@ export default function Register() {
         render={({ field: { onChange, value } }) => (
           <TextInput
             placeholder="Email"
+            placeholderTextColor={theme.muted}
             style={styles.input}
             onChangeText={onChange}
             value={value}
@@ -58,6 +64,7 @@ export default function Register() {
         render={({ field: { onChange, value } }) => (
           <TextInput
             placeholder="Password"
+            placeholderTextColor={theme.muted}
             secureTextEntry
             style={styles.input}
             onChangeText={onChange}
@@ -78,6 +85,7 @@ export default function Register() {
         render={({ field: { onChange, value } }) => (
           <TextInput
             placeholder="Confirm Password"
+            placeholderTextColor={theme.muted}
             secureTextEntry
             style={styles.input}
             onChangeText={onChange}
@@ -89,14 +97,36 @@ export default function Register() {
         <Text style={styles.error}>{errors.confirmPassword.message}</Text>
       )}
 
-      <Button title="Register" onPress={handleSubmit(onRegister)} />
+      <TouchableOpacity style={styles.button} onPress={handleSubmit(onRegister)}>
+        <Text style={styles.buttonText}>Register</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  title: { fontSize: 24, marginBottom: 20, textAlign: "center" },
-  input: { borderWidth: 1, padding: 10, marginBottom: 10 },
-  error: { color: "red", marginBottom: 10 }
-});
+function createStyles(theme) {
+  return StyleSheet.create({
+    container: { backgroundColor: theme.background, flex: 1, justifyContent: "center", padding: 20 },
+    title: { color: theme.text, fontSize: 24, fontWeight: "700", marginBottom: 20, textAlign: "center" },
+    input: {
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      borderRadius: 8,
+      borderWidth: 1,
+      color: theme.text,
+      marginBottom: 10,
+      padding: 10,
+    },
+    button: {
+      alignItems: "center",
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+      padding: 12,
+    },
+    buttonText: {
+      color: theme.primaryText,
+      fontWeight: "700",
+    },
+    error: { color: theme.danger, marginBottom: 10 },
+  });
+}

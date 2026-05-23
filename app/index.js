@@ -9,10 +9,14 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../contexts/ThemeContext";
 import { getCurrentUser, logoutUser } from "../utils/storage";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +33,7 @@ export default function HomeScreen() {
         setLoading(false);
       };
       loadUser();
-    }, [])
+    }, [router])
   );
 
   const handleLogout = async () => {
@@ -45,13 +49,15 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text>Loading...</Text>
+        <Text style={styles.infoValue}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.container}>
+      <ThemeToggle />
+
       {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.greeting}>
@@ -102,11 +108,12 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(theme) {
+  return StyleSheet.create({
   container: {
+    backgroundColor: theme.background,
     flex: 1,
     padding: 20,
-    backgroundColor: "#fff",
   },
 
   header: {
@@ -117,13 +124,13 @@ const styles = StyleSheet.create({
   },
 
   greeting: {
+    color: theme.text,
     fontSize: 24,
     fontWeight: "bold",
-    color: "#333",
   },
 
   logout: {
-    color: "red",
+    color: theme.danger,
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -138,23 +145,23 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 75,
     borderWidth: 3,
-    borderColor: "#ddd",
+    borderColor: theme.border,
   },
 
   placeholderImage: {
     width: 150,
     height: 150,
     borderRadius: 75,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: theme.surface,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
-    borderColor: "#ddd",
+    borderColor: theme.border,
   },
 
   noPhoto: {
+    color: theme.muted,
     fontSize: 16,
-    color: "#999",
   },
 
   infoSection: {
@@ -163,32 +170,33 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
+    color: theme.text,
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
     marginBottom: 15,
   },
 
   infoCard: {
-    backgroundColor: "#f9f9f9",
+    backgroundColor: theme.card,
     padding: 12,
     marginBottom: 10,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: "#007AFF",
+    borderLeftColor: theme.primary,
   },
 
   infoLabel: {
+    color: theme.muted,
     fontSize: 12,
     fontWeight: "600",
-    color: "#666",
     textTransform: "uppercase",
   },
 
   infoValue: {
+    color: theme.text,
     fontSize: 16,
-    color: "#333",
     marginTop: 4,
     fontWeight: "500",
   },
-});
+  });
+}
